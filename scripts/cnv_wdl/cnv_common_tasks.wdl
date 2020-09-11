@@ -430,6 +430,9 @@ task PostprocessGermlineCNVCalls {
       File? intervals_vcf_index
       File? clustered_vcf
       File? clustered_vcf_index
+      File? reference_fasta
+      File? reference_fasta_fai
+      File? reference_dict
       File? gatk4_jar_override
 
       # Runtime parameters
@@ -499,7 +502,8 @@ task PostprocessGermlineCNVCalls {
             --output-genotyped-segments ~{genotyped_segments_vcf_filename} \
             --output-denoised-copy-ratios ~{denoised_copy_ratios_filename}  \
             ~{"--combined-intervals-vcf " + intervals_vcf} \
-            ~{"--clustered-breakpoints " + clustered_vcf}
+            ~{"--clustered-breakpoints " + clustered_vcf} \
+            ~{"-R " + reference_fasta}
 
         rm -rf CALLS_*
         rm -rf MODEL_*
@@ -531,7 +535,7 @@ task CollectSampleQualityMetrics {
       Int maximum_number_pass_events
 
       # Runtime parameters
-      String gatk_docker
+      String bash_docker
       Int? mem_gb
       Int? disk_space_gb
       Boolean use_ssd = false
@@ -543,20 +547,23 @@ task CollectSampleQualityMetrics {
 
     command <<<
         set -eu
-        NUM_SEGMENTS=$(zgrep -c '^#' ~{genotyped_segments_vcf})
-        NUM_PASS_SEGMENTS=$(zgrep -c '^#.*PASS' ~{genotyped_segments_vcf})
+        #use wc instead of grep -c so zero count isn't non-zero exit
+        #use grep -P to recognize tab character
+        NUM_SEGMENTS=$(zgrep '^[^#]' ~{genotyped_segments_vcf} | grep -v '0/0' | grep -v -P '\t0:1:' | grep '' | wc -l)
+        NUM_PASS_SEGMENTS=$(zgrep '^[^#]' ~{genotyped_segments_vcf} | grep -v '0/0' | grep -v -P '\t0:1:' | grep 'PASS' | wc -l)
         if [ $NUM_SEGMENTS -lt ~{maximum_number_events} ]; then
             if [ $NUM_PASS_SEGMENTS -lt ~{maximum_number_pass_events} ]; then
               echo "PASS" >> ~{entity_id}.qcStatus.txt
             else
               echo "EXCESSIVE_NUMBER_OF_PASS_EVENTS" >> ~{entity_id}.qcStatus.txt
-        else 
+            fi
+        else
             echo "EXCESSIVE_NUMBER_OF_EVENTS" >> ~{entity_id}.qcStatus.txt
         fi
     >>>
 
     runtime {
-        docker: gatk_docker
+        docker: bash_docker
         memory: machine_mem_mb + " MB"
         disks: "local-disk " + select_first([disk_space_gb, 20]) + if use_ssd then " SSD" else " HDD"
         cpu: select_first([cpu, 1])

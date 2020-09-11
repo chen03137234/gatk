@@ -331,6 +331,11 @@ public final class PostprocessGermlineCNVCallsIntegrationTest extends CommandLin
         Assert.assertTrue(output3.getRight().get(6).getStart() == 147963 &&output3.getRight().get(6).getReference().equals(Allele.REF_N));
     }
 
+    @Test
+    public void testX0Aneuploidy() {
+
+    }
+
     @DataProvider(name = "differentValidInput")
     public Object[][] getDifferentValidInputTestData() {
         final List<Object[]> testCases = new ArrayList<>();

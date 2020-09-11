@@ -11,30 +11,27 @@ workflow JointCallExomeCNVs {
     ##################################
     input {
       Int num_samples_per_scatter_block
-      #sample-specific arguments
-      File contig_ploidy_calls_tar
-      Array[File]+ segments_vcfs
-      Array[File]+ segments_vcf_indexes
-      Array[File]+ intervals_vcf
-      Array[File]+ intervals_vcf_indexes
-      Array[Array[File]] gcnv_calls_tars
-
-      #model-specific arguments
       File intervals
       File? blacklist_intervals
-      Array[File] gcnv_model_tars
-      Array[File] calling_configs
-      Array[File] denoising_configs
-      Array[File] gcnvkernel_version
-      Array[File] sharded_interval_lists
-      File contig_ploidy_calls_tar
-      Array[String]? allosomal_contigs
-      Int ref_copy_number_autosomal_contigs
+
+	  File contig_ploidy_calls_tar_path_list
+      File gcnv_calls_tars_path_list
+      File genotyped_intervals_vcf_indexes_path_list
+      File genotyped_intervals_vcfs_path_list
+      File genotyped_segments_vcf_indexes_path_list
+      File genotyped_segments_vcfs_path_list
 
       #qc arguments
       Int maximum_number_events
       Int maximum_number_pass_events
 
+      Array[File] gcnv_model_tars
+      Array[File] calling_configs
+      Array[File] denoising_configs
+      Array[File] gcnvkernel_version
+      Array[File] sharded_interval_lists
+      Array[String]? allosomal_contigs
+      Int ref_copy_number_autosomal_contigs
       File ref_fasta_dict
       File ref_fasta_fai
       File ref_fasta
@@ -45,12 +42,21 @@ workflow JointCallExomeCNVs {
       File  noncoding_bed
       String gatk_docker
       String gatk_docker_clustering
+      String gatk_docker_qual_calc
       String sv_pipeline_docker
     }
 
+      Array[File] contig_ploidy_calls_tars = read_lines(contig_ploidy_calls_tar_path_list)
+      Array[File] segments_vcfs = read_lines(genotyped_segments_vcfs_path_list)
+      Array[File] segments_vcf_indexes = read_lines(genotyped_segments_vcf_indexes_path_list)
+      Array[File] intervals_vcfs = read_lines(genotyped_intervals_vcfs_path_list)
+      Array[File] intervals_vcf_indexes = read_lines(genotyped_intervals_vcf_indexes_path_list)
+      Array[Array[File]] gcnv_calls_tars = read_tsv(gcnv_calls_tars_path_list)
+      Array[Array[File]] call_tars_sample_by_shard = transpose(gcnv_calls_tars)
+
     call MakePedFile {
       input:
-        contig_ploidy_calls_tar = contig_ploidy_calls_tar,
+        contig_ploidy_calls_tar = read_lines(contig_ploidy_calls_tar_path_list),
         x_contig_name = x_contig_name
     }
 
@@ -89,8 +95,8 @@ workflow JointCallExomeCNVs {
 
     call JointSegmentation as GatherJointSegmentation {
       input:
-        segments_vcfs = select_first([flatten(ScatterJointSegmentation.segments_vcfs), segments_vcfs]),
-        segments_vcf_indexes = select_first([flatten(ScatterJointSegmentation.segments_vcf_indexes), segments_vcfs]),
+        segments_vcfs = select_first([ScatterJointSegmentation.clustered_vcf, segments_vcfs]),
+        segments_vcf_indexes = select_first([ScatterJointSegmentation.clustered_vcf_index, segments_vcfs]),
         ped_file = MakePedFile.ped_file,
         ref_fasta = ref_fasta,
         ref_fasta_fai = ref_fasta_fai,
@@ -99,33 +105,30 @@ workflow JointCallExomeCNVs {
         model_intervals = intervals
     }
 
-    Array[Array[File]] gcnv_calls_tars_T = transpose(gcnv_calls_tars)
-
     scatter (scatter_index in range(length(segments_vcfs))) {
       call CNVTasks.PostprocessGermlineCNVCalls as RecalcQual {
         input:
-              entity_id = sub(sub(basename(intervals_vcf[scatter_index]), ".vcf.gz", ""), "intervals_output_", ""),
-              gcnv_calls_tars = gcnv_calls_tars_T[scatter_index],
+              entity_id = sub(sub(basename(intervals_vcfs[scatter_index]), ".vcf.gz", ""), "intervals_output_", ""),
+              gcnv_calls_tars = call_tars_sample_by_shard[scatter_index],
               gcnv_model_tars = gcnv_model_tars,
               calling_configs = calling_configs,
               denoising_configs = denoising_configs,
               gcnvkernel_version = gcnvkernel_version,
               sharded_interval_lists = sharded_interval_lists,
-              contig_ploidy_calls_tar = contig_ploidy_calls_tar,
+              contig_ploidy_calls_tar = read_lines(contig_ploidy_calls_tar_path_list)[0],
               allosomal_contigs = allosomal_contigs,
               ref_copy_number_autosomal_contigs = ref_copy_number_autosomal_contigs,
               sample_index = scatter_index,
-              intervals_vcf = intervals_vcf[scatter_index],
+              intervals_vcf = intervals_vcfs[scatter_index],
               intervals_vcf_index = intervals_vcf_indexes[scatter_index],
               clustered_vcf = GatherJointSegmentation.clustered_vcf,
               clustered_vcf_index = GatherJointSegmentation.clustered_vcf_index,
-              gatk_docker = gatk_docker_clustering
+              gatk_docker = gatk_docker_qual_calc
       }
-
-      call CNVTasks.CollectSampleQCMetrics as SampleQC {
+       call CNVTasks.CollectSampleQualityMetrics as SampleQC {
         input:
           genotyped_segments_vcf = RecalcQual.genotyped_segments_vcf,
-          entity_id = sub(sub(basename(intervals_vcf[scatter_index]), ".vcf.gz", ""), "intervals_output_", ""),
+          entity_id = sub(sub(basename(intervals_vcfs[scatter_index]), ".vcf.gz", ""), "intervals_output_", ""),
           maximum_number_events = maximum_number_events,
           maximum_number_pass_events = maximum_number_pass_events
       }
@@ -148,7 +151,7 @@ workflow JointCallExomeCNVs {
     }
 
     # this annotates any vcf -- for exomes we can do all chromosomes at once
-    call AnnotateVcf.AnnotateChromosome {
+    call AnnotateVcf.AnnotateChromosome as Annotate {
         input:
           prefix = "combined.annotated",
           vcf = FastCombine.combined_vcf,
@@ -162,26 +165,34 @@ workflow JointCallExomeCNVs {
     output {
       File combined_calls = FastCombine.combined_vcf
       File combined_calls_index = FastCombine.combined_vcf_index
+      File annotated_vcf = Annotate.annotated_vcf
+      File annotated_vcf_index = Annotate.annotated_vcf_idx
+      Array[String] sample_qc_status_strings = SampleQC.qc_status_string
     }
 }
 
 task MakePedFile {
   input {
-    File contig_ploidy_calls_tar
+    Array[File] contig_ploidy_calls_tar
     String x_contig_name
   }
 
   command <<<
     set -e
-    tar -xf ~{contig_ploidy_calls_tar}
-    WORKSPACE=$( basename ~{contig_ploidy_calls_tar} .tar.gz)
 
-    for sample in $(ls -d -1 SAMPLE*)
+    while read tar
     do
-      sample_name=$(cat $sample/sample_name.txt)
-      x_ploidy=$(grep ^X $sample/contig_ploidy.tsv | cut -f 2)
-      printf "%s\t%s\t0\t0\t%s\t0\n" $sample_name $sample_name $x_ploidy >> cohort.ped
-    done
+      mkdir callsDir
+      tar -xf $tar -C callsDir
+
+      for sample in $(ls -d -1 callsDir/SAMPLE*)
+      do
+        sample_name=$(cat $sample/sample_name.txt)
+        x_ploidy=$(grep ^X $sample/contig_ploidy.tsv | cut -f 2)
+        printf "%s\t%s\t0\t0\t%s\t0\n" $sample_name $sample_name $x_ploidy >> cohort.ped
+      done
+      rm -rf callsDir
+    done < ~{write_lines(contig_ploidy_calls_tar)}
     >>>
 
     output {
@@ -243,40 +254,6 @@ task JointSegmentation {
       cpu: select_first([cpu, 1])
       preemptible: select_first([preemptible_attempts, 2])
     }
-}
-
-task CombineVariants {
-  input {
-    Array[File] input_vcfs
-    Array[File] input_vcf_indexes
-    File ref_fasta
-    File ref_fasta_fai
-    File ref_fasta_dict
-    Int? preemptible_tries
-    Int? disk_size
-    Float? mem_gb
-  }
-
-  command <<<
-    java -jar -XX:GCTimeLimit=50 -XX:GCHeapFreeLimit=10 -Xms2000m \
-          -jar /usr/gitc/GATK35.jar \
-          -T CombineVariants -R ~{ref_fasta} \
-          -V ~{sep=' -V ' input_vcfs} \
-          -o combined.vcf
-    >>>
-
-  runtime {
-    docker: "us.gcr.io/broad-gotc-prod/genomes-in-the-cloud:2.4.3-1564508330"
-    preemptible: select_first([preemptible_tries, 2])
-    memory: select_first([mem_gb, 3.5]) + " GiB"
-    cpu: "1"
-    disks: "local-disk " + select_first([disk_size, 50]) + " HDD"
-  }
-
-  output {
-    File combined_vcf = "combined.vcf"
-    File combined_vcf_index = "combined.vcf.idx"
-  }
 }
 
 task FastCombine {
