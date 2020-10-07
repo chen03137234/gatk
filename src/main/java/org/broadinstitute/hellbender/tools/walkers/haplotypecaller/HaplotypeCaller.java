@@ -13,6 +13,7 @@ import org.broadinstitute.hellbender.engine.*;
 import org.broadinstitute.hellbender.engine.filters.ReadFilter;
 import org.broadinstitute.hellbender.tools.walkers.annotator.Annotation;
 import org.broadinstitute.hellbender.tools.walkers.annotator.VariantAnnotatorEngine;
+import org.broadinstitute.hellbender.transformers.ReadTransformer;
 import org.broadinstitute.hellbender.utils.fasta.CachingIndexedFastaSequenceFile;
 import org.broadinstitute.hellbender.utils.io.IOUtils;
 
@@ -154,6 +155,9 @@ public final class HaplotypeCaller extends AssemblyRegionWalker {
     public List<ReadFilter> getDefaultReadFilters() {
         return HaplotypeCallerEngine.makeStandardHCReadFilters();
     }
+
+    @Override
+    public ReadTransformer makePreReadFilterTransformer() { return HaplotypeCallerEngine.makeStandardHCReadTransformer(); }
 
     @Override
     public List<Class<? extends Annotation>> getDefaultVariantAnnotationGroups() { return HaplotypeCallerEngine.getStandardHaplotypeCallerAnnotationGroups();}
