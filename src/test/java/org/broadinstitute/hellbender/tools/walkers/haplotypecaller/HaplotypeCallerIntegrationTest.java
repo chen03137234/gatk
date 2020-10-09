@@ -3,6 +3,7 @@ package org.broadinstitute.hellbender.tools.walkers.haplotypecaller;
 import com.google.common.collect.ImmutableMap;
 import htsjdk.samtools.SamFiles;
 import htsjdk.samtools.util.FileExtensions;
+import htsjdk.samtools.util.Log;
 import htsjdk.variant.variantcontext.Allele;
 import htsjdk.variant.variantcontext.Genotype;
 import htsjdk.variant.variantcontext.GenotypeBuilder;
@@ -1336,7 +1337,9 @@ public class HaplotypeCallerIntegrationTest extends CommandLineProgramTest {
                 .addInput(bam)
                 .addReference(hg38Reference)
                 .addInterval(interval)
-                .addOutput(output);
+                .addOutput(output)
+                //We can check the warning in the test log provided we're explicit about the logging level
+                .add(StandardArgumentDefinitions.VERBOSITY_NAME, Log.LogLevel.WARNING.name());
         runCommandLine(args);
 
         final List<VariantContext> outputVCs = VariantContextTestUtils.readEntireVCFIntoMemory(output.getAbsolutePath()).getRight();
