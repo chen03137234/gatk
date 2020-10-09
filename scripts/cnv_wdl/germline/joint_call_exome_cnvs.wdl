@@ -188,7 +188,8 @@ task MakePedFile {
       for sample in $(ls -d -1 callsDir/SAMPLE*)
       do
         sample_name=$(cat $sample/sample_name.txt)
-        x_ploidy=$(grep ^X $sample/contig_ploidy.tsv | cut -f 2)
+        x_ploidy=$(grep ^~{x_contig_name} $sample/contig_ploidy.tsv | cut -f 2)
+        [[ -z "$x_ploidy" ]] && { echo "Chromosome ~{x_contig_name} ploidy call not found for sample " $sample_name; exit 1; }
         printf "%s\t%s\t0\t0\t%s\t0\n" $sample_name $sample_name $x_ploidy >> cohort.ped
       done
       rm -rf callsDir
