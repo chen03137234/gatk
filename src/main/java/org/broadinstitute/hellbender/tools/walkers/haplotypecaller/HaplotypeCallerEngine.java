@@ -344,7 +344,7 @@ public final class HaplotypeCallerEngine implements AssemblyRegionEvaluator {
      * @return the default read transformer to apply to HaplotypeCaller input
      */
     public static ReadTransformer makeStandardHCReadTransformer() {
-        return new IUPACReadTransformer();
+        return new IUPACReadTransformer(true);
     }
 
     /**

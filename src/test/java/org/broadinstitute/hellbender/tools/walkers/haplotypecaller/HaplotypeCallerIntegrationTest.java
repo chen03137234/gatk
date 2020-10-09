@@ -1322,7 +1322,8 @@ public class HaplotypeCallerIntegrationTest extends CommandLineProgramTest {
     /*
     Prior to IUPAC ReadTransformer fix, this test yields
     java.lang.IllegalArgumentException: Unexpected base in allele bases 'ATTCATTTCACAAGGGTAAAGCTTTCTTTGGATTCAGCAGGTTGGAAAATCTGTTTTTCACCTTTCTGTGAATGGACGTTTGGGAGCTCATTGAGGCCAGTGRCAATAAAGGAGATATCTCAGGGTGAAAAATAAAAGACAGGAATGTGAGAATTGGCTTTGTGATGTGAGCATTCATTTCACAAAGTTAAACCTTTCTTTTCATTCAGCAGTTAGAAATCACTGGTTTTGTAGAATCTG'
-    where there's an R in that big long string representing the assembled haplotype.
+    where there's an R in that big long string representing the assembled haplotype.  The R is in the hg38 reference and
+    gets propagated into cram reads.
      */
     @Test
     public void testAdjacentIUPACBasesinReads() {
