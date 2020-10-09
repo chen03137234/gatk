@@ -1,5 +1,6 @@
 package org.broadinstitute.hellbender.transformers;
 
+import org.apache.logging.log4j.util.Supplier;
 import org.broadinstitute.hellbender.utils.BaseUtils;
 import org.broadinstitute.hellbender.utils.logging.OneShotLogger;
 import org.broadinstitute.hellbender.utils.read.GATKRead;
@@ -30,9 +31,10 @@ public class IUPACReadTransformer implements ReadTransformer {
     public GATKRead apply(GATKRead read) {
         final byte[] maybeTransformed = BaseUtils.convertIUPACtoN(read.getBases(), strictMode, false);
         if (!Arrays.equals(read.getBases(), maybeTransformed)) {
-            logger.warn("At least one read contains IUPAC bases that have been transformed.  Read " + read.getName() + " contains: "
+            logger.warn(() -> "At least one read contains IUPAC bases that have been transformed.  Read " + read.getName() + " contains: "
             + IntStream.range(0, read.getBases().length).map(idx -> read.getBase(idx))
-                    .filter(i -> !BaseUtils.isNucleotide((byte)i) && !BaseUtils.isNBase((byte)i)).mapToObj(i -> (char)i).collect(Collectors.toList()));
+                    .filter(i -> !BaseUtils.isNucleotide((byte)i) && !BaseUtils.isNBase((byte)i))
+                    .mapToObj(i -> (char)i).collect(Collectors.toList()));
             read.setBases(maybeTransformed);
         }
         return read;
