@@ -34,7 +34,7 @@ public class JointCNVSegmentationIntegrationTest extends CommandLineProgramTest 
     @DataProvider
     public Object[][] postprocessOutputs() {
         return new Object[][] {
-               new Object[]{SEGMENTS_VCF_CORRECT_OUTPUTS, 5},
+               new Object[]{SEGMENTS_VCF_CORRECT_OUTPUTS, 5, 6},
         };
     }
 
@@ -64,7 +64,7 @@ public class JointCNVSegmentationIntegrationTest extends CommandLineProgramTest 
     }
 
     @Test(dataProvider = "postprocessOutputs")
-    public void testThreeGCNVSamples(final List<File> inputVcfs, final int expectedCountDefault, final int expectedCount) {
+    public void testThreeGCNVSamples(final List<File> inputVcfs, final int expectedCountDefault, final int expectedCountNoFilter) {
         final File output = createTempFile("threeSamples", ".vcf");
 
         final ArgumentsBuilder args = new ArgumentsBuilder()
@@ -95,7 +95,7 @@ public class JointCNVSegmentationIntegrationTest extends CommandLineProgramTest 
         runCommandLine(args2, JointCNVSegmentation.class.getSimpleName());
 
         final Pair<VCFHeader, List<VariantContext>> withoutQStreshold = VariantContextTestUtils.readEntireVCFIntoMemory(output2.getAbsolutePath());
-        Assert.assertEquals(withoutQStreshold.getRight().size(), expectedCount + 1); //extra variant at X:227988
+        Assert.assertEquals(withoutQStreshold.getRight().size(), expectedCountNoFilter); //extra variant at X:227988
 
         //another test to make sure adjacent events with different copy numbers don't get merged/defragmented?
     }

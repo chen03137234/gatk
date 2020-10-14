@@ -115,14 +115,19 @@ public class SVCallRecord implements Feature {
                     throw new IllegalArgumentException("Segment VCF schema expects <DEL>, <DUP>, and no-call allele, but found " + g.getAllele(0) + " at " + variant.getContig() + ":" + variant.getStart());
                 }
             } else {  //spec-compliant VCFs will have some no-call GTs since dupes can't be phased
-                final int ploidy = g.getPloidy();
+                //for spec-compliant VCFs can't we trust the ALT?
+                /*final int ploidy = g.getPloidy();
                 final int copyNumber = Integer.valueOf((String) g.getExtendedAttribute(GermlineCNVSegmentVariantComposer.CN));
                 if (copyNumber == ploidy) {
                     return null;
                 }
-                isDel = copyNumber - ploidy < 0;
+                isDel = copyNumber - ploidy < 0;*/
+                if (variant.getAlternateAlleles().contains(GATKSVVCFConstants.DEL_ALLELE) && !variant.getAlternateAlleles().contains(GATKSVVCFConstants.DUP_ALLELE)) {
+                    isDel = true;
+                } else {
+                    isDel = false;
+                }
             }
-            break;
         }
 
         final boolean startStrand = isDel ? true : false;
